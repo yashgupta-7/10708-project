@@ -8,6 +8,10 @@ def edgeindex2adj(edge_index, num_nodes):
     adj[edge_index[1], edge_index[0]] = 1
     return adj
 
+def adj2edgeindex(adj):
+    edge_index = torch.nonzero(adj).t()
+    return edge_index
+
 def laplacian(adj, typ = 'normailzed'):
     if typ == 'normalized':
         # invert only the non-zero entries
@@ -22,25 +26,22 @@ def laplacian(adj, typ = 'normailzed'):
     return L
 
 
-def smooth_label_loss(data, out, alpha=0.9):
+def smooth_label_loss(data, out, adj, alpha=0.9):
     adj = edgeindex2adj(data.edge_index, data.x.shape[0])
-    lap = laplacian(adj, typ='normailzed')
+    lap = laplacian(adj, typ='adf')
     pred_z = out
-    # print(pred_z.shape, lap.shape)
-    # print(torch.mm(pred_z.t(), lap).shape)
-    # print("laplacian has nan: ", torch.isnan(lap).any())
-    # print(pred_z[:5])
-    # print(torch.mm(pred_z.t(), lap)[:5, :5])
+    # data.edge_index = adj2edgeindex(adj)
     loss_1 = torch.trace(torch.mm(torch.mm(pred_z.t(), lap), pred_z))
     loss_2 = F.cross_entropy(out[data.train_mask], data.y[data.train_mask])
-    return 0.000005 * loss_1 + loss_2
+    loss_3 = -torch.norm(adj)**2
+    return 0.00005 * loss_1 + loss_2 + 0.0 * loss_3
 
 def train(model, data, optimizer, loss='cross_entropy'): # train for one epoch
     model.train()
     optimizer.zero_grad()
-    out = model(data.x, data.edge_index)
+    out, adj = model(data.x, data.edge_index)
     if loss == 'smooth_label':
-        loss = smooth_label_loss(data, out)
+        loss = smooth_label_loss(data, out, adj)
     elif loss == 'cross_entropy':
         loss = F.cross_entropy(out[data.train_mask], data.y[data.train_mask])
     else:
@@ -51,15 +52,8 @@ def train(model, data, optimizer, loss='cross_entropy'): # train for one epoch
 
 def test(model, data): # get accuracy on train, val, and test sets
     model.eval()
-    pred = model(data.x, data.edge_index).argmax(dim=-1)
+    pred = model(data.x, data.edge_index)[0].argmax(dim=-1)
     accs = []
     for mask in [data.train_mask, data.val_mask, data.test_mask]:
         accs.append(int((pred[mask] == data.y[mask]).sum()) / int(mask.sum()))
     return accs
-
-def modify_adj(adj, features):
-    def feat_dist(feat1, feat2):
-        return torch.norm(feat1 - feat2, dim=-1)
-    def graph_dist(adj, i, j):
-        _, lap = get_laplacian(data.edge_index, normalization=None) # 'sym', 'rw'
-        return lap[i, j]
