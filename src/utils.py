@@ -39,7 +39,8 @@ def smooth_label_loss(data, out, adj, alpha=0.9):
 def train(model, data, optimizer, loss='cross_entropy'): # train for one epoch
     model.train()
     optimizer.zero_grad()
-    out, adj = model(data.x, data.edge_index)
+    adj = edgeindex2adj(data.edge_index, data.x.shape[0])
+    out = model(data.x, data.edge_index)
     if loss == 'smooth_label':
         loss = smooth_label_loss(data, out, adj)
     elif loss == 'cross_entropy':
@@ -52,7 +53,7 @@ def train(model, data, optimizer, loss='cross_entropy'): # train for one epoch
 
 def test(model, data): # get accuracy on train, val, and test sets
     model.eval()
-    pred = model(data.x, data.edge_index)[0].argmax(dim=-1)
+    pred = model(data.x, data.edge_index).argmax(dim=-1)
     accs = []
     for mask in [data.train_mask, data.val_mask, data.test_mask]:
         accs.append(int((pred[mask] == data.y[mask]).sum()) / int(mask.sum()))
