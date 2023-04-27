@@ -13,7 +13,7 @@ class AdaptiveLabelPropagation(MessagePassing):
         self.num_layers = num_layers
         self.alpha = alpha
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def forward(
         self,
         y: Tensor,
