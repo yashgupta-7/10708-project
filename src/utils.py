@@ -29,26 +29,28 @@ def laplacian(adj, typ = 'normailzed'):
 def smooth_label_loss(data, out, adj, alpha=0.9):
     adj = edgeindex2adj(data.edge_index, data.x.shape[0])
     lap = laplacian(adj, typ='adf')
-    pred_z = out
+    # pred_z = out
     # data.edge_index = adj2edgeindex(adj)
-    loss_1 = torch.trace(torch.mm(torch.mm(pred_z.t(), lap), pred_z))
+    loss_1 = torch.trace(torch.mm(torch.mm(out.t(), lap), out)) / out.shape[0]
     loss_2 = F.cross_entropy(out[data.train_mask], data.y[data.train_mask])
-    loss_3 = -torch.norm(adj)**2
-    return 0.00005 * loss_1 + loss_2 + 0.0 * loss_3
+    # loss_3 = -torch.norm(adj)**2
+    return alpha * loss_1 + loss_2 
 
-def train(model, data, optimizer, loss='cross_entropy'): # train for one epoch
+def train(model, data, optimizer, scheduler=None, loss='cross_entropy', alpha=0.9): # train for one epoch
     model.train()
     optimizer.zero_grad()
     adj = edgeindex2adj(data.edge_index, data.x.shape[0])
     out = model(data.x, data.edge_index)
     if loss == 'smooth_label':
-        loss = smooth_label_loss(data, out, adj)
+        loss = smooth_label_loss(data, out, adj, alpha=alpha)
     elif loss == 'cross_entropy':
         loss = F.cross_entropy(out[data.train_mask], data.y[data.train_mask])
     else:
         raise ValueError('invalid loss function')
     loss.backward()
     optimizer.step()
+    if scheduler is not None:
+        scheduler.step()
     return loss
 
 def test(model, data): # get accuracy on train, val, and test sets
