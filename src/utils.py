@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch
 from torch_geometric.utils import get_laplacian
+import numpy as np
 
 def edgeindex2adj(edge_index, num_nodes):
     adj = torch.zeros(num_nodes, num_nodes)
@@ -80,4 +81,24 @@ def non_smooth_label_metric(dataset, preds, k=1):
                     non_label_smooth_nodes.append(i)
             total_nodes +=1
     return non_label_smooth_node_counts/total_nodes
-    
+
+def label_difference(model, dataset):
+    model.eval()
+    data = dataset[0]
+    pred = model(data.x, data.edge_index).argmax(dim=-1)
+    # label diff = 1/V * sum_{v in V} |z_v - z_c|
+    # z_c is readout(intermediate feature) of nodes with class c
+    # z_v is readout(intermediate feature) of node v
+    # V is the set of nodes with class c
+
+    C = dataset.num_classes
+    label_diff = np.zeros(C)
+    features = model.features
+    for c in range(C):
+        num_nodes = data.y[data.y==c].shape[0]
+        if num_nodes == 0:
+            return 0
+        zc = features[data.y==c].mean(dim=0)
+        zv = features[data.y==c]
+        label_diff[c] = (torch.norm(zv-zc, dim=1).sum()/num_nodes).item()
+    return label_diff
