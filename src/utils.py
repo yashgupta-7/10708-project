@@ -60,3 +60,24 @@ def test(model, data): # get accuracy on train, val, and test sets
     for mask in [data.train_mask, data.val_mask, data.test_mask]:
         accs.append(int((pred[mask] == data.y[mask]).sum()) / int(mask.sum()))
     return accs
+
+
+def non_smooth_label_metric(dataset, preds, k=1):
+    data = dataset[0]
+    non_label_smooth_node_counts = 0
+    total_nodes = 0
+    non_label_smooth_nodes = []
+    n = data.x.shape[0]
+    adj = edgeindex2adj(data.edge_index, n)
+    counts = torch.zeros((n, dataset.num_classes))
+    for edge in data.edge_index.T:
+        counts[edge[0]][data.y[edge[1]]] +=1
+    for i in range(n):
+        if data.val_mask[i]:
+            if preds[i]!=data.y[i]:
+                if counts[i][data.y[i]] == adj[i].sum() and adj[i].sum() > 1:
+                    non_label_smooth_node_counts +=1
+                    non_label_smooth_nodes.append(i)
+            total_nodes +=1
+    return non_label_smooth_node_counts/total_nodes
+    
