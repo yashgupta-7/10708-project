@@ -3,6 +3,7 @@ from torch import Tensor
 from torch_geometric.nn import GCNConv, GATConv, LabelPropagation
 import torch.nn.functional as F
 from alp import AdaptiveLabelPropagation
+import torch_geometric
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -103,4 +104,53 @@ class ALP(torch.nn.Module):
         accs = []
         for mask in [self.data.train_mask, self.data.val_mask, self.data.test_mask]:
             accs.append(int((pred[mask] == self.data.y[mask]).sum()) / int(mask.sum()))
+        return accs
+
+class GCNLPA(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, edge_dim, k=4, num_layers=2): #, dropout, edge_dim, k):
+        super(GCNLPA, self).__init__()
+        
+        convs = [GCNConv(input_dim, hidden_dim)] + [GCNConv(hidden_dim, hidden_dim) for _ in range(num_layers-2)] + [GCNConv(hidden_dim, output_dim)]
+        self.convs = torch.nn.ModuleList(convs)
+        # self.bns = torch.nn.ModuleList([torch.nn.BatchNorm1d(hidden_dim) for _ in range(num_layers-1)])
+        self.softmax = torch.nn.Softmax(dim=1)
+        # self.dropout = dropout
+        self.edge_weight = torch.nn.Parameter(torch.ones(edge_dim))
+        self.k = k
+
+    def reset_parameters(self):
+        for conv in self.convs:
+            conv.reset_parameters()
+        for bn in self.bns:
+            bn.reset_parameters()
+
+    def forward(self, data, adj_t=None):
+        # GCN
+        x, edge_index = data.x, data.edge_index
+        for i, layer in enumerate(self.convs):
+          x = layer(x, edge_index, self.edge_weight.sigmoid())
+          if i < len(self.convs)-1:
+            # x = self.bns[i](x)
+            x = F.relu(x)
+            # x = F.dropout(x, p=self.dropout, training=self.training)
+        out = self.softmax(x)
+
+        # LPA implementation with dense format
+        labels = torch.nn.functional.one_hot(data.y.type(torch.long)).type(torch.float)
+        matrix = torch_geometric.utils.to_dense_adj(data.edge_index, edge_attr=self.edge_weight.sigmoid(), max_num_nodes=data.num_nodes)
+        matrix = matrix.squeeze(0)
+        selfloop = torch.diag(torch.ones(matrix.shape[0]))
+        matrix += selfloop
+        for _ in range(self.k):
+          y = torch.matmul(matrix, labels)
+          labels = y
+        return out, torch.nn.functional.normalize(labels, dim=1)
+    
+    def test(self, data): # get accuracy on train, val, and test sets
+        self.eval()
+        pred = self.forward(data)[0].argmax(dim=-1)
+        accs = []
+        for mask in [data.train_mask, data.val_mask, data.test_mask]:
+            accs.append(int((pred[mask] == data.y[mask]).sum()) / int(mask.sum()))
+        self.train()
         return accs
