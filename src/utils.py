@@ -100,5 +100,5 @@ def label_difference(model, dataset):
             return 0
         zc = features[data.y==c].mean(dim=0)
         zv = features[data.y==c]
-        label_diff[c] = (torch.norm(zv-zc, dim=1).sum()/num_nodes).item()
+        label_diff[c] = (torch.linalg.norm(zv-zc, dim=1, ord=2).sum()/num_nodes).item()
     return label_diff

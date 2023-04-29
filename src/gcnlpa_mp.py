@@ -123,7 +123,7 @@ def run_analysis(dataset_type='cora', model_type = 'GCN', k = 5, lpa = True):
 
 if __name__=='__main__':
     pool = mp.Pool(8)
-    results = pool.starmap(run_analysis, [('citeseer', 'GAT', k_i, False) for k_i in [1,2,5,10,20]])
+    results = pool.starmap(run_analysis, [('citeseer', 'GAT', k_i, True) for k_i in [1,2,5,10,20]])
     pool.close()
     pool.join()
     print(results)

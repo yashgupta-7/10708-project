@@ -11,12 +11,12 @@ class GCN(torch.nn.Module):
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, out_channels)
         self.features = None
-    def forward(self, x: Tensor, edge_index: Tensor) -> Tensor:
+    def forward(self, x: Tensor, edge_index: Tensor, edge_weight:Tensor=None) -> Tensor:
         # x: Node feature matrix of shape [num_nodes, in_channels]
         # edge_index: Graph connectivity matrix of shape [2, num_edges]
-        x = self.conv1(x, edge_index).relu()
+        x = self.conv1(x, edge_index, edge_weight).relu()
         self.features = x
-        x = self.conv2(x, edge_index)
+        x = self.conv2(x, edge_index, edge_weight)
         return x
 
 class GAT(torch.nn.Module):
@@ -30,12 +30,12 @@ class GAT(torch.nn.Module):
         # self.s = adj.clone()
         # self.alpha = 0.99
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, edge_weight=None):
         x = F.dropout(x, p=0.6, training=self.training)
-        x = F.elu(self.conv1(x, edge_index))
+        x = F.elu(self.conv1(x, edge_index, edge_weight))
         self.features = x
         x = F.dropout(x, p=0.6, training=self.training)
-        x = self.conv2(x, edge_index)
+        x = self.conv2(x, edge_index, edge_weight)
         # xtx = x @ x.t()
         # temp_S = torch.where(xtx > torch.quantile(xtx, 0.98), torch.tensor(1.), torch.tensor(0.))
         # self.s = self.alpha * self.s + (1 - self.alpha) * temp_S
